@@ -1,0 +1,63 @@
+trigger:
+  branches:
+    include:
+      - master
+      - rel/*
+  paths:
+    include:
+      - src/SignClient/*
+      - .editorconfig
+      - azure-pipelines.client.yml
+      - version.json
+      - scripts/*
+
+pr:
+  branches:
+    include:
+      - master
+      - rel/*
+  paths:
+    include:
+      - src/SignClient/*
+      - .editorconfig
+      - azure-pipelines.client.yml
+      - version.json
+      - scripts/*
+
+pool:
+  vmImage: windows-2019
+
+variables: 
+  BuildConfiguration: Release
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+steps:
+- task: DotNetCoreInstaller@0
+  inputs:
+    version: '3.0.100-preview6-011859'
+
+- task: DotNetCoreCLI@2
+  inputs:
+    command: pack
+    packagesToPack: src/SignClient/SignClient.csproj
+    packDirectory: $(Build.ArtifactStagingDirectory)\Client
+    configuration: $(BuildConfiguration)
+  displayName: Build Client
+
+- task: PowerShell@2
+  displayName: Authenticode Sign Client artifacts
+  inputs:
+    filePath: scripts/Sign-Package.ps1
+  env:
+    SignClientUser: $(SignClientUser)
+    SignClientSecret: $(SignClientSecret)
+    ArtifactDirectory: $(Build.ArtifactStagingDirectory)\Client
+  condition: and(succeeded(), not(eq(variables['build.reason'], 'PullRequest')), not(eq(variables['SignClientSecret'], '')), not(eq(variables['SignClientUser'], '')))
+
+
+- task: PublishBuildArtifacts@1
+  displayName: Publish SignClient Artifact
+  inputs:
+    pathToPublish: $(Build.ArtifactStagingDirectory)\Client
+    artifactType: container
+    artifactName: SignClient
